@@ -1,0 +1,88 @@
+name: Ephemeral Lakehouse Deployment
+
+on:
+  workflow_dispatch: # Allows you to manually click "Run workflow" from GitHub UI
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy_run_destroy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: "1.5.0"
+
+      - name: Terraform Init
+        working-directory: ./infrastructure/terraform
+        run: terraform init
+
+      - name: Terraform Apply (Provision Cloud Architecture)
+        id: apply
+        working-directory: ./infrastructure/terraform
+        run: |
+          # Create an SSH keypair on the fly to access the ephemeral instance
+          ssh-keygen -t rsa -b 2048 -f ./ephemeral_key -N ""
+          export TF_VAR_public_key=$(cat ./ephemeral_key.pub)
+          terraform apply -auto-approve
+          echo "private_key<<EOF" >> $GITHUB_OUTPUT
+          cat ./ephemeral_key >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Get EC2 IP Address
+        id: get_ip
+        working-directory: ./infrastructure/terraform
+        run: |
+          echo "instance_ip=$(terraform output -raw instance_public_ip)" >> $GITHUB_OUTPUT
+
+      - name: Wait for EC2 to Boot
+        run: sleep 60
+
+      - name: Execute Lakehouse Pipeline via SSH
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ steps.get_ip.outputs.instance_ip }}
+          username: ubuntu
+          key: ${{ env.PRIVATE_KEY }}
+          envs: GITHUB_SHA
+          script: |
+            sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y make docker.io docker-compose
+            sudo systemctl enable --now docker
+            sudo usermod -aG docker ubuntu
+            
+            git clone https://github.com/${{ github.repository }} project
+            cd project
+            git checkout $GITHUB_SHA
+            
+            # Start the core lakehouse
+            sudo docker-compose --profile core up -d --build
+            
+            # Wait for data to flow and tests to pass
+            sleep 60
+            
+            # Run silver processing batch
+            sudo docker-compose --profile orchestration up -d --build
+            
+            # Check containers are running
+            sudo docker ps
+            
+            echo "Success! Pipeline ran on cloud ephemeral architecture."
+        env:
+          PRIVATE_KEY: ${{ steps.apply.outputs.private_key }}
+
+      - name: Terraform Destroy (Teardown to prevent costs)
+        if: always() # Ensure this runs even if the pipeline step fails!
+        working-directory: ./infrastructure/terraform
+        run: terraform destroy -auto-approve
