@@ -55,8 +55,22 @@ services:
     ports:
       - "19092:19092"
       - "9644:9644" # Admin API
+      - "8081:8081" # Schema Registry
     volumes:
       - redpanda_data:/var/lib/redpanda/data
+
+  trip-producer:
+    build:
+      context: ./producer
+      dockerfile: Dockerfile
+    profiles: ["core", "all"]
+    container_name: trip-producer
+    environment:
+      - KAFKA_BROKER=redpanda:9092
+      - SCHEMA_REGISTRY_URL=http://redpanda:8081
+      - KAFKA_TOPIC=trips.live
+    depends_on:
+      - redpanda
 
   # Spark Notebook environment for testing scripts
   spark-workspace:
