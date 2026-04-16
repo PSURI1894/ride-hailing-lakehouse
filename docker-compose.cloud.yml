@@ -49,9 +49,45 @@ services:
       - S3_BUCKET=${S3_BUCKET_NAME}
       - RUN_MODE=cloud
       - SPARK_LOCAL_IP=127.0.0.1
+    volumes:
+      - ./data:/app/data
     deploy:
       resources:
         limits:
           memory: 512M
     depends_on:
       - trip-producer
+
+  # Spark Silver Cleaning & DQ
+  spark-silver-processing:
+    build:
+      context: ./spark_jobs
+      dockerfile: Dockerfile
+    container_name: spark-silver-processing
+    environment:
+      - S3_BUCKET=${S3_BUCKET}
+      - RUN_MODE=cloud
+      - SPARK_LOCAL_IP=127.0.0.1
+    volumes:
+      - ./data:/app/data
+    command: ["python", "silver_processing.py"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Spark Gold Aggregations
+  spark-gold-aggregations:
+    build:
+      context: ./spark_jobs
+      dockerfile: Dockerfile
+    container_name: spark-gold-aggregations
+    environment:
+      - S3_BUCKET=${S3_BUCKET}
+      - RUN_MODE=cloud
+      - SPARK_LOCAL_IP=127.0.0.1
+    command: ["python", "gold_aggregations.py"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M

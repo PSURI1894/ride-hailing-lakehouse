@@ -98,13 +98,28 @@ jobs:
               sleep 10
             done
             
-            # 5. Run Spark Ingestion (Ephemeral)
+            # 5. Run Spark Ingestion (Bronze - Streaming)
             echo "Running Spark Bronze Ingestion..."
             sudo -E S3_BUCKET=$S3_BUCKET docker-compose -f docker-compose.cloud.yml up spark-bronze-ingestion
             
-            # 6. Final Log Check
-            sudo docker logs spark-bronze-ingestion
+            # Wait 30s for data to fully land/flush
+            sleep 30
+
+            # 6. Run Silver Cleaning & Data Quality
+            echo "Running Spark Silver Processing & DQ Checks..."
+            sudo -E S3_BUCKET=$S3_BUCKET docker-compose -f docker-compose.cloud.yml up spark-silver-processing
+            
+            # Run DQ script explicitly if needed, or it's baked into Silver
+            echo "Running Data Quality Validation..."
+            sudo docker exec spark-silver-processing python dq_checks.py
+
+            # 7. Run Gold Aggregation
+            echo "Running Spark Gold Aggregations..."
+            sudo -E S3_BUCKET=$S3_BUCKET docker-compose -f docker-compose.cloud.yml up spark-gold-aggregations
+
+            # 8. Final Log Check
             echo "Pipeline finished successfully!"
+            echo "Data available in S3: s3://$S3_BUCKET/gold/"
         env:
           PRIVATE_KEY: ${{ steps.apply.outputs.private_key }}
 

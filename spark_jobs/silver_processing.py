@@ -54,12 +54,32 @@ def main():
         print(f"Failed to read bronze table (maybe empty or not created yet): {e}")
         return
 
-    # Basic data quality and transformations
-    # 1. Reject negative fares
-    # 2. Compute trip duration
-    # 3. Compute fare_per_mile
-    
-    df_silver = df_bronze.filter(col("fare_amount") >= 0) \
+    # Load taxi zone centroids for H3 indexing
+    centroids_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'taxi_zone_lookup_coordinates.csv')
+    df_centroids = spark.read.option("header", "true").csv(centroids_path) \
+        .withColumn("LocationID", col("LocationID").cast("integer")) \
+        .withColumn("lat", col("lat").cast("double")) \
+        .withColumn("lon", col("lon").cast("double"))
+
+    # Join centroids for Pickup
+    df_with_pu = df_bronze.join(df_centroids.alias("pu"), col("PULocationID") == col("pu.LocationID"), "left") \
+        .select("*", col("pu.lat").alias("pu_lat"), col("pu.lon").alias("pu_lon")) \
+        .drop("LocationID", "lat", "lon")
+
+    # Join centroids for Dropoff
+    df_with_geo = df_with_pu.join(df_centroids.alias("do"), col("DOLocationID") == col("do.LocationID"), "left") \
+        .select("*", col("do.lat").alias("do_lat"), col("do.lon").alias("do_lon")) \
+        .drop("LocationID", "lat", "lon")
+
+    # Register H3 UDF
+    from pyspark.sql.functions import udf
+    from pyspark.sql.types import StringType
+    h3_udf = udf(lambda lat, lon: get_h3_index(lat, lon, 9), StringType())
+
+    # Add H3 Hexagons
+    df_silver = df_with_geo.withColumn("pickup_h3", h3_udf(col("pu_lat"), col("pu_lon"))) \
+        .withColumn("dropoff_h3", h3_udf(col("do_lat"), col("do_lon"))) \
+        .filter(col("fare_amount") >= 0) \
         .withColumn("tpep_pickup_datetime", col("tpep_pickup_datetime").cast("timestamp")) \
         .withColumn("tpep_dropoff_datetime", col("tpep_dropoff_datetime").cast("timestamp")) \
         .withColumn("trip_duration_minutes", 
