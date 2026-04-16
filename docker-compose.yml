@@ -90,6 +90,23 @@ services:
       - minio
       - redpanda
 
+  spark-bronze-ingestion:
+    build:
+      context: ./spark_jobs
+      dockerfile: Dockerfile
+    profiles: ["core", "all"]
+    container_name: spark-bronze-ingestion
+    environment:
+      - KAFKA_BROKER=redpanda:9092
+      - KAFKA_TOPIC=trips.live
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password123
+    volumes:
+      - ./producer/schemas:/app/producer/schemas
+    depends_on:
+      - trip-producer
+      - minio-init
+
   # ==========================================
   # PROFILE: "serving" (Trino & BI)
   # ==========================================
