@@ -1,6 +1,8 @@
 name: Ephemeral Lakehouse Deployment
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch: # Allows you to manually click "Run workflow" from GitHub UI
 
 env:

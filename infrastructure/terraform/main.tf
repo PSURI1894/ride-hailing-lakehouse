@@ -34,7 +34,7 @@ resource "aws_s3_bucket_public_access_block" "lakehouse_privacy" {
 
 # Create a Security Group to allow SSH temporarily
 resource "aws_security_group" "pipeline_sg" {
-  name        = "lakehouse_pipeline_sg"
+  name_prefix = "lakehouse_pipeline_sg_"
   description = "Allow SSH inbound traffic"
 
   ingress {
@@ -59,13 +59,13 @@ variable "public_key" {
 }
 
 resource "aws_key_pair" "ephemeral_key" {
-  key_name   = "lakehouse-ephemeral-key"
-  public_key = var.public_key
+  key_name_prefix = "lakehouse-key-"
+  public_key      = var.public_key
 }
 
 # Create an IAM Role for the EC2 Instance
 resource "aws_iam_role" "pipeline_role" {
-  name = "lakehouse_pipeline_role"
+  name_prefix = "lakehouse_role_"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -83,8 +83,8 @@ resource "aws_iam_role" "pipeline_role" {
 
 # Attach S3 Full Access to the Role (Optimized for the specific bucket)
 resource "aws_iam_role_policy" "s3_access" {
-  name = "lakehouse_s3_access"
-  role = aws_iam_role.pipeline_role.id
+  name_prefix = "lakehouse_s3_"
+  role        = aws_iam_role.pipeline_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -103,8 +103,8 @@ resource "aws_iam_role_policy" "s3_access" {
 
 # Create an Instance Profile to attach to the EC2
 resource "aws_iam_instance_profile" "pipeline_profile" {
-  name = "lakehouse_pipeline_profile"
-  role = aws_iam_role.pipeline_role.name
+  name_prefix = "lakehouse_profile_"
+  role        = aws_iam_role.pipeline_role.name
 }
 
 # 2. Ephemeral Compute Instance (Placeholder for Phase 6 Pipeline Execution)
