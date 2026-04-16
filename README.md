@@ -8,7 +8,15 @@ An end-to-end Data Engineering portfolio project demonstrating a Medallion Lakeh
 * **Processing:** Apache Spark (Structured Streaming & Batch)
 * **Orchestration:** Apache Airflow
 * **Transformation:** dbt (Data Build Tool)
-* **Serving & BI:** Trino + Apache Superset
+* **BI:** Apache Superset
+
+---
+
+## 📚 Detailed Documentation
+*   **[Architecture Deep-Dive](ARCHITECTURE.md)**: Detailed Mermaid diagrams, data flow, and medallion layer logic.
+*   **[Performance Benchmark](BENCHMARK.md)**: Delta Lake vs. Apache Iceberg comparison report.
+
+---
 
 ## Hardware Warning
 This entire stack is highly resource-intensive. Running all containers at once may require **16GB+ of RAM**. 
