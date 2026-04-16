@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: silver
+    schema: silver
+    description: Silver layer data from Delta
+    tables:
+      - name: trips
+        description: Deduplicated and enriched trips
