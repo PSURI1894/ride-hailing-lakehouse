@@ -1,0 +1,17 @@
+checks for trips:
+  # Basic data quality
+  - row_count > 0
+  - missing_count(trip_id) = 0
+  - duplicate_count(trip_id) = 0
+  
+  # Schema validation
+  - schema:
+      name: trips
+      columns:
+        trip_id: string
+        fare_amount: double
+        tpep_pickup_datetime: timestamp
+
+  # Business logic
+  - min(fare_amount) >= 0
+  - max(fare_amount) < 5000

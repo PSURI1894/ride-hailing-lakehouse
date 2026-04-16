@@ -110,9 +110,32 @@ services:
   # ==========================================
   # PROFILE: "serving" (Trino & BI)
   # ==========================================
-  # (Placeholders for Phase 4 & 6 mapping)
-  # trino: ...
-  # superset: ...
+  trino:
+    image: trinodb/trino:435
+    profiles: ["serving", "all"]
+    container_name: trino
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./infrastructure/trino/etc:/etc/trino
+    depends_on:
+      - minio
+
+  superset:
+    image: apache/superset:3.0.2
+    profiles: ["serving", "all"]
+    container_name: superset
+    ports:
+      - "8088:8088"
+    depends_on:
+      - trino
+    entrypoint: >
+      /bin/sh -c "
+      superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@example.com --password admin;
+      superset db upgrade;
+      superset init;
+      gunicorn -w 10 -k gevent --timeout 120 -b  0.0.0.0:8088 --limit-request-line 0 --limit-request-field_size 0 'superset.app:create_app()'
+      "
 
   # ==========================================
   # PROFILE: "orchestration" (Airflow)
