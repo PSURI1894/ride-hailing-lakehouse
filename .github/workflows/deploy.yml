@@ -60,6 +60,7 @@ jobs:
           host: ${{ steps.info.outputs.instance_ip }}
           username: ubuntu
           key: ${{ env.PRIVATE_KEY }}
+          command_timeout: 60m
           script: |
             # 1. Setup Environment & Swap (Critical for t2.micro)
             sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y make docker.io docker-compose
