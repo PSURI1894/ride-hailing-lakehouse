@@ -4,17 +4,26 @@ from pyspark.sql.functions import col, expr, when
 import h3
 
 def create_spark_session():
-    return SparkSession.builder \
+    run_mode = os.getenv("RUN_MODE", "local")
+    s3_bucket = os.getenv("S3_BUCKET", "raw-taxi-data")
+    
+    builder = SparkSession.builder \
         .appName("SilverProcessing") \
         .config("spark.jars.packages", "io.delta:delta-spark_2.12:3.1.0,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262") \
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
         .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
-        .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
-        .config("spark.hadoop.fs.s3a.access.key", "admin") \
-        .config("spark.hadoop.fs.s3a.secret.key", "password123") \
-        .config("spark.hadoop.fs.s3a.path.style.access", "true") \
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-        .getOrCreate()
+        .config("spark.hadoop.fs.s3a.path.style.access", "true")
+
+    if run_mode == "cloud":
+        print(f"Running in CLOUD mode, targeting S3 Bucket: {s3_bucket}")
+    else:
+        print("Running in LOCAL mode, targeting MinIO")
+        builder = builder.config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
+            .config("spark.hadoop.fs.s3a.access.key", "admin") \
+            .config("spark.hadoop.fs.s3a.secret.key", "password123")
+
+    return builder.getOrCreate()
 
 # UDF to get H3 hexagon index
 def get_h3_index(lat, lon, resolution=9):

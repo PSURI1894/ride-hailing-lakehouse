@@ -41,11 +41,12 @@ jobs:
           cat ./ephemeral_key >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Get EC2 IP Address
-        id: get_ip
+      - name: Get EC2 and S3 Information
+        id: info
         working-directory: ./infrastructure/terraform
         run: |
           echo "instance_ip=$(terraform output -raw instance_public_ip)" >> $GITHUB_OUTPUT
+          echo "s3_bucket=$(terraform output -raw s3_bucket_name)" >> $GITHUB_OUTPUT
 
       - name: Wait for EC2 to Boot
         run: sleep 60
@@ -53,10 +54,10 @@ jobs:
       - name: Execute Lakehouse Pipeline via SSH
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ steps.get_ip.outputs.instance_ip }}
+          host: ${{ steps.info.outputs.instance_ip }}
           username: ubuntu
           key: ${{ env.PRIVATE_KEY }}
-          envs: GITHUB_SHA
+          envs: GITHUB_SHA,S3_BUCKET_NAME
           script: |
             sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y make docker.io docker-compose
             sudo systemctl enable --now docker
@@ -66,21 +67,25 @@ jobs:
             cd project
             git checkout $GITHUB_SHA
             
-            # Start the core lakehouse
-            sudo docker-compose --profile core up -d --build
+            # Start Redpanda and Producer using the cloud-optimized profile
+            export S3_BUCKET_NAME=${{ steps.info.outputs.s3_bucket }}
+            sudo -E docker-compose -f docker-compose.cloud.yml up -d --build redpanda trip-producer
             
-            # Wait for data to flow and tests to pass
-            sleep 60
+            # Wait for data to flow (Redpanda boot + 1000 messages)
+            echo "Waiting for Redpanda to boot and ingest data..."
+            sleep 120
             
-            # Run silver processing batch
-            sudo docker-compose --profile orchestration up -d --build
+            # Run Spark Bronze Ingestion (Ephemeral run)
+            echo "Running Spark Bronze Ingestion..."
+            sudo -E docker-compose -f docker-compose.cloud.yml up spark-bronze-ingestion
             
-            # Check containers are running
-            sudo docker ps
+            # Verification: Check docker logs
+            sudo docker logs spark-bronze-ingestion
             
-            echo "Success! Pipeline ran on cloud ephemeral architecture."
+            echo "Success! Ephemeral Pipeline ran on t2.micro using S3."
         env:
           PRIVATE_KEY: ${{ steps.apply.outputs.private_key }}
+          S3_BUCKET_NAME: ${{ steps.info.outputs.s3_bucket }}
 
       - name: Terraform Destroy (Teardown to prevent costs)
         if: always() # Ensure this runs even if the pipeline step fails!

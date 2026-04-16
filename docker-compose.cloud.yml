@@ -1,0 +1,57 @@
+version: '3.8'
+
+# Optimized Cloud Profile for t2.micro (1GB RAM)
+# This profile disables all UI services and runs a single-node Spark processing pipeline.
+
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.2.14
+    container_name: redpanda
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 256M 
+      - --reserve-memory 0M
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr internal://0.0.0.0:9092
+      - --advertise-kafka-addr internal://redpanda:9092
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster info"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Producer reuses the same build but with limited resources
+  trip-producer:
+    build:
+      context: ./producer
+      dockerfile: Dockerfile
+    container_name: trip-producer
+    environment:
+      - KAFKA_BROKER=redpanda:9092
+      - SCHEMA_REGISTRY_URL=http://redpanda:8081
+      - KAFKA_TOPIC=trips.live
+      - MAX_TRIPS=1000 # Limit data for the ephemeral run
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  # Spark Ingestion (Runs in local mode to save RAM)
+  spark-bronze-ingestion:
+    build:
+      context: ./spark_jobs
+      dockerfile: Dockerfile
+    container_name: spark-bronze-ingestion
+    environment:
+      - KAFKA_BROKER=redpanda:9092
+      - KAFKA_TOPIC=trips.live
+      - S3_BUCKET=${S3_BUCKET_NAME}
+      - RUN_MODE=cloud
+      - SPARK_LOCAL_IP=127.0.0.1
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    depends_on:
+      - trip-producer

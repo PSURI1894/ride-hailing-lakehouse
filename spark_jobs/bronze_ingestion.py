@@ -9,17 +9,28 @@ with open(schema_path, 'r') as f:
     avro_schema = f.read()
 
 def create_spark_session():
-    return SparkSession.builder \
+    run_mode = os.getenv("RUN_MODE", "local")
+    s3_bucket = os.getenv("S3_BUCKET", "raw-taxi-data")
+    
+    builder = SparkSession.builder \
         .appName("BronzeIngestion") \
         .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.apache.spark:spark-avro_2.12:3.5.0,io.delta:delta-spark_2.12:3.1.0,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262") \
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
         .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
-        .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
-        .config("spark.hadoop.fs.s3a.access.key", "admin") \
-        .config("spark.hadoop.fs.s3a.secret.key", "password123") \
-        .config("spark.hadoop.fs.s3a.path.style.access", "true") \
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-        .getOrCreate()
+        .config("spark.hadoop.fs.s3a.path.style.access", "true")
+
+    if run_mode == "cloud":
+        # In the cloud we use default AWS S3 endpoint and IAM role
+        print(f"Running in CLOUD mode, targeting S3 Bucket: {s3_bucket}")
+    else:
+        # Locally we use MinIO
+        print("Running in LOCAL mode, targeting MinIO")
+        builder = builder.config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
+            .config("spark.hadoop.fs.s3a.access.key", "admin") \
+            .config("spark.hadoop.fs.s3a.secret.key", "password123")
+
+    return builder.getOrCreate()
 
 def main():
     spark = create_spark_session()

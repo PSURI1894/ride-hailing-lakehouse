@@ -63,6 +63,50 @@ resource "aws_key_pair" "ephemeral_key" {
   public_key = var.public_key
 }
 
+# Create an IAM Role for the EC2 Instance
+resource "aws_iam_role" "pipeline_role" {
+  name = "lakehouse_pipeline_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# Attach S3 Full Access to the Role (Optimized for the specific bucket)
+resource "aws_iam_role_policy" "s3_access" {
+  name = "lakehouse_s3_access"
+  role = aws_iam_role.pipeline_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "s3:*"
+        Effect = "Allow"
+        Resource = [
+          "${aws_s3_bucket.lakehouse.arn}",
+          "${aws_s3_bucket.lakehouse.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+# Create an Instance Profile to attach to the EC2
+resource "aws_iam_instance_profile" "pipeline_profile" {
+  name = "lakehouse_pipeline_profile"
+  role = aws_iam_role.pipeline_role.name
+}
+
 # 2. Ephemeral Compute Instance (Placeholder for Phase 6 Pipeline Execution)
 # This prevents 24/7 charges by only spinning up via CI/CD, running the Spark job, and terminating.
 resource "aws_instance" "pipeline_runner" {
@@ -70,6 +114,7 @@ resource "aws_instance" "pipeline_runner" {
   instance_type = "t2.micro"              # AWS Free Tier eligible
   key_name      = aws_key_pair.ephemeral_key.key_name
   vpc_security_group_ids = [aws_security_group.pipeline_sg.id]
+  iam_instance_profile   = aws_iam_instance_profile.pipeline_profile.name
 
   # Make sure we get a public IP
   associate_public_ip_address = true
@@ -81,4 +126,8 @@ resource "aws_instance" "pipeline_runner" {
 
 output "instance_public_ip" {
   value = aws_instance.pipeline_runner.public_ip
+}
+
+output "s3_bucket_name" {
+  value = aws_s3_bucket.lakehouse.id
 }
