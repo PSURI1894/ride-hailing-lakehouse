@@ -67,7 +67,7 @@ resource "aws_key_pair" "ephemeral_key" {
 # This prevents 24/7 charges by only spinning up via CI/CD, running the Spark job, and terminating.
 resource "aws_instance" "pipeline_runner" {
   ami           = "ami-0c7217cdde317cfec" # Ubuntu 22.04 LTS us-east-1 
-  instance_type = "t3.large"              # Provides 8GB RAM, enough to run our docker-compose pipeline
+  instance_type = "t2.micro"              # AWS Free Tier eligible
   key_name      = aws_key_pair.ephemeral_key.key_name
   vpc_security_group_ids = [aws_security_group.pipeline_sg.id]
 
