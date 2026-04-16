@@ -1,0 +1,84 @@
+version: '3.8'
+
+# Use Docker Compose profiles to manage RAM usage on local machines.
+# Run specific tiers: `docker-compose --profile core up -d`
+
+volumes:
+  minio_data:
+  redpanda_data:
+
+services:
+  # ==========================================
+  # PROFILE: "core" (Ingestion & Storage)
+  # ==========================================
+  minio:
+    image: minio/minio:RELEASE.2023-11-20T22-40-07Z
+    profiles: ["core", "all"]
+    container_name: minio
+    ports:
+      - "9000:9000"  # API
+      - "9001:9001"  # Console
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    profiles: ["core", "all"]
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set local http://minio:9000 admin password123;
+      mc mb local/lakehouse;
+      mc mb local/raw-taxi-data;
+      exit 0;
+      "
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.2.14
+    profiles: ["core", "all"]
+    container_name: redpanda
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 1G 
+      - --reserve-memory 0M
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092"
+      - "9644:9644" # Admin API
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+
+  # Spark Notebook environment for testing scripts
+  spark-workspace:
+    image: jupyter/pyspark-notebook:spark-3.5.0
+    profiles: ["core", "all"]
+    container_name: spark-workspace
+    user: root
+    environment:
+      - GOOGLE_DEFAULT_CLIENT_ID=null # Supress warnings
+    ports:
+      - "8888:8888" # Jupyter
+      - "4040:4040" # Spark UI
+    volumes:
+      - ./src:/home/jovyan/work/src
+      - ./data:/home/jovyan/work/data
+    depends_on:
+      - minio
+      - redpanda
+
+  # ==========================================
+  # PROFILE: "serving" (Trino & BI)
+  # ==========================================
+  # (Placeholders for Phase 4 & 6 mapping)
+  # trino: ...
+  # superset: ...
