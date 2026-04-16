@@ -83,9 +83,9 @@ jobs:
             git checkout ${{ github.sha }}
             
             # 3. Start Data Flow
-            export S3_BUCKET_NAME=${{ steps.info.outputs.s3_bucket }}
-            echo "Starting Redpanda and Producer (Bucket: $S3_BUCKET_NAME)..."
-            sudo -E S3_BUCKET_NAME=$S3_BUCKET_NAME docker-compose -f docker-compose.cloud.yml up -d --build redpanda trip-producer
+            export S3_BUCKET=${{ steps.info.outputs.s3_bucket }}
+            echo "Starting Redpanda and Producer (Bucket: $S3_BUCKET)..."
+            sudo -E S3_BUCKET=$S3_BUCKET docker-compose -f docker-compose.cloud.yml up -d --build redpanda trip-producer
             
             # 4. Wait for Redpanda Health
             echo "Waiting for Redpanda to be ready..."
@@ -100,7 +100,7 @@ jobs:
             
             # 5. Run Spark Ingestion (Ephemeral)
             echo "Running Spark Bronze Ingestion..."
-            sudo -E S3_BUCKET_NAME=$S3_BUCKET_NAME docker-compose -f docker-compose.cloud.yml up spark-bronze-ingestion
+            sudo -E S3_BUCKET=$S3_BUCKET docker-compose -f docker-compose.cloud.yml up spark-bronze-ingestion
             
             # 6. Final Log Check
             sudo docker logs spark-bronze-ingestion

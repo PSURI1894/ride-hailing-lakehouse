@@ -44,8 +44,8 @@ def main():
     # The gold layer mentions "Airflow orchestrates batch DAGs + table maintenance" for hourly_silver.
     # So silver processing is an hourly batch job reading from Bronze.
 
-    bronze_path = "s3a://raw-taxi-data/bronze/trips"
-    silver_path = "s3a://raw-taxi-data/silver/trips"
+    bronze_path = f"s3a://{s3_bucket}/bronze/trips"
+    silver_path = f"s3a://{s3_bucket}/silver/trips"
 
     print(f"Reading bronze data from {bronze_path}...")
     try:

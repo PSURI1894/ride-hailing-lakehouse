@@ -66,8 +66,8 @@ def main():
     df_bronze = df_parsed.withColumn("_ingest_ts", current_timestamp())
 
     # Write to Delta Bronze layer
-    bronze_path = "s3a://raw-taxi-data/bronze/trips"
-    checkpoint_path = "s3a://raw-taxi-data/checkpoints/bronze_trips"
+    bronze_path = f"s3a://{s3_bucket}/bronze/trips"
+    checkpoint_path = f"s3a://{s3_bucket}/checkpoints/bronze_trips"
 
     print(f"Starting stream to {bronze_path}...")
     
