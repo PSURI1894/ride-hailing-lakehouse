@@ -58,35 +58,51 @@ jobs:
           host: ${{ steps.info.outputs.instance_ip }}
           username: ubuntu
           key: ${{ env.PRIVATE_KEY }}
-          envs: GITHUB_SHA,S3_BUCKET_NAME
           script: |
+            # 1. Setup Environment & Swap (Critical for t2.micro)
             sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y make docker.io docker-compose
             sudo systemctl enable --now docker
             sudo usermod -aG docker ubuntu
-
+            
+            # Create 2GB swap file so we don't OOM
+            if [ ! -f /swapfile ]; then
+              sudo fallocate -l 2G /swapfile
+              sudo chmod 600 /swapfile
+              sudo mkswap /swapfile
+              sudo swapon /swapfile
+            fi
+            
+            # 2. Clone and Setup
+            rm -rf project # Clean start
             git clone https://github.com/${{ github.repository }} project
             cd project
-            git checkout $GITHUB_SHA
-
-            # Start Redpanda and Producer using the cloud-optimized profile
+            git checkout ${{ github.sha }}
+            
+            # 3. Start Data Flow
             export S3_BUCKET_NAME=${{ steps.info.outputs.s3_bucket }}
-            sudo -E docker-compose -f docker-compose.cloud.yml up -d --build redpanda trip-producer
-
-            # Wait for data to flow (Redpanda boot + 1000 messages)
-            echo "Waiting for Redpanda to boot and ingest data..."
-            sleep 120
-
-            # Run Spark Bronze Ingestion (Ephemeral run)
+            echo "Starting Redpanda and Producer (Bucket: $S3_BUCKET_NAME)..."
+            sudo -E S3_BUCKET_NAME=$S3_BUCKET_NAME docker-compose -f docker-compose.cloud.yml up -d --build redpanda trip-producer
+            
+            # 4. Wait for Redpanda Health
+            echo "Waiting for Redpanda to be ready..."
+            for i in {1..20}; do
+              if sudo docker exec redpanda rpk cluster info > /dev/null 2>&1; then
+                echo "Redpanda is READY."
+                break
+              fi
+              echo "Waiting... ($i/20)"
+              sleep 10
+            done
+            
+            # 5. Run Spark Ingestion (Ephemeral)
             echo "Running Spark Bronze Ingestion..."
-            sudo -E docker-compose -f docker-compose.cloud.yml up spark-bronze-ingestion
-
-            # Verification: Check docker logs
+            sudo -E S3_BUCKET_NAME=$S3_BUCKET_NAME docker-compose -f docker-compose.cloud.yml up spark-bronze-ingestion
+            
+            # 6. Final Log Check
             sudo docker logs spark-bronze-ingestion
-
-            echo "Success! Ephemeral Pipeline ran on t2.micro using S3."
+            echo "Pipeline finished successfully!"
         env:
           PRIVATE_KEY: ${{ steps.apply.outputs.private_key }}
-          S3_BUCKET_NAME: ${{ steps.info.outputs.s3_bucket }}
 
       - name: Terraform Destroy (Teardown to prevent costs)
         if: always() # Ensure this runs even if the pipeline step fails!
