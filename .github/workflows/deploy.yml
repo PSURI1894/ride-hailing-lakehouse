@@ -75,6 +75,7 @@ jobs:
             fi
             
             # 2. Clone and Setup
+            sudo docker system prune -af # Clean up any failed intermediate layers
             rm -rf project # Clean start
             git clone https://github.com/${{ github.repository }} project
             cd project
@@ -109,4 +110,11 @@ jobs:
       - name: Terraform Destroy (Teardown to prevent costs)
         if: always() # Ensure this runs even if the pipeline step fails!
         working-directory: ./infrastructure/terraform
-        run: terraform destroy -auto-approve
+        run: |
+          # Re-export the public key variable for teardown if the file exists
+          if [ -f ./ephemeral_key.pub ]; then
+            export TF_VAR_public_key=$(cat ./ephemeral_key.pub)
+          else
+            export TF_VAR_public_key="dummy-key-for-teardown"
+          fi
+          terraform destroy -auto-approve

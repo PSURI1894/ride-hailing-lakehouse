@@ -119,6 +119,13 @@ resource "aws_instance" "pipeline_runner" {
   # Make sure we get a public IP
   associate_public_ip_address = true
 
+  # Increase root volume size for Docker builds (20GB is still Free Tier)
+  root_block_device {
+    volume_size = 20
+    volume_type = "gp3"
+    delete_on_termination = true
+  }
+
   tags = {
     Name = "Lakehouse-Pipeline-Runner"
   }
