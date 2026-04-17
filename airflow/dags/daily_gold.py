@@ -13,7 +13,7 @@ default_args = {
     "email_on_failure": False,
     "email_on_retry": False,
     "retries": 1,
-    "retry_delay": timedelta(minutes=5),
+    "retry_delay": timedelta(minutes=10),
 }
 
 project_mount = Mount(
@@ -30,35 +30,23 @@ common_env = {
 
 
 with DAG(
-    "hourly_silver_processing",
+    "daily_gold_modeling",
     default_args=default_args,
-    description="Run Silver cleaning and DQ every hour",
-    schedule="@hourly",
+    description="Build Gold serving tables once per day",
+    schedule="@daily",
     catchup=False,
-    tags=["silver", "dq"],
+    tags=["gold", "serving"],
 ) as dag:
-    run_silver = DockerOperator(
-        task_id="run_silver_spark_job",
+    run_gold = DockerOperator(
+        task_id="run_gold_aggregations",
         image="jupyter/pyspark-notebook:spark-3.5.0",
         api_version="auto",
         auto_remove="force",
-        command="python /app/spark_jobs/silver_processing.py",
+        command="python /app/spark_jobs/gold_aggregations.py",
         docker_url="unix://var/run/docker.sock",
         network_mode="ride-hailing-lakehouse_default",
         mounts=[project_mount],
         environment=common_env,
     )
 
-    run_dq = DockerOperator(
-        task_id="validate_silver_quality",
-        image="jupyter/pyspark-notebook:spark-3.5.0",
-        api_version="auto",
-        auto_remove="force",
-        command="python /app/spark_jobs/dq_checks.py",
-        docker_url="unix://var/run/docker.sock",
-        network_mode="ride-hailing-lakehouse_default",
-        mounts=[project_mount],
-        environment=common_env,
-    )
-
-    run_silver >> run_dq
+    run_gold

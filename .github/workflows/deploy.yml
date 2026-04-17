@@ -1,4 +1,4 @@
-name: Ephemeral Lakehouse Deployment
+name: Optional Ephemeral Lakehouse Deployment
 
 on:
   push:
@@ -123,7 +123,7 @@ jobs:
         env:
           PRIVATE_KEY: ${{ steps.apply.outputs.private_key }}
 
-      - name: Terraform Destroy (Teardown to prevent costs)
+      - name: Terraform Destroy Compute Only (Keep S3 Data)
         if: always() # Ensure this runs even if the pipeline step fails!
         working-directory: ./infrastructure/terraform
         run: |
@@ -133,4 +133,10 @@ jobs:
           else
             export TF_VAR_public_key="dummy-key-for-teardown"
           fi
-          terraform destroy -auto-approve
+          terraform destroy -auto-approve \
+            -target=aws_instance.pipeline_runner \
+            -target=aws_key_pair.ephemeral_key \
+            -target=aws_security_group.pipeline_sg \
+            -target=aws_iam_instance_profile.pipeline_profile \
+            -target=aws_iam_role_policy.s3_access \
+            -target=aws_iam_role.pipeline_role

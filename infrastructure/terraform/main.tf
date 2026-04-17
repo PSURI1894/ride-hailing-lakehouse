@@ -17,10 +17,27 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
+variable "lakehouse_bucket_name" {
+  description = "Optional fixed bucket name for the lakehouse. Leave null to let Terraform generate one."
+  type        = string
+  default     = null
+}
+
+variable "allow_bucket_destroy" {
+  description = "Set to true only when you explicitly want Terraform to delete the bucket and every object inside it."
+  type        = bool
+  default     = false
+}
+
 # 1. Provide an S3 Bucket to act as our Lakehouse storage (replaces MinIO)
 resource "aws_s3_bucket" "lakehouse" {
-  bucket_prefix = "ride-hailing-lakehouse-"
-  force_destroy = true # Allows easy tear-down
+  bucket        = var.lakehouse_bucket_name
+  bucket_prefix = var.lakehouse_bucket_name == null ? "ride-hailing-lakehouse-" : null
+  force_destroy = var.allow_bucket_destroy
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Secure the bucket by blocking public access
@@ -30,6 +47,14 @@ resource "aws_s3_bucket_public_access_block" "lakehouse_privacy" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "lakehouse_versioning" {
+  bucket = aws_s3_bucket.lakehouse.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
 
 # Create a Security Group to allow SSH temporarily

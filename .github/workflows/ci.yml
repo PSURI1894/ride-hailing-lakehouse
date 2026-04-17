@@ -24,8 +24,7 @@ jobs:
 
       - name: Check code formatting (Black)
         run: |
-          # We'll fail the build if python files aren't formatted
-          black --check src/ || echo "No python files yet"
+          black --check producer/src spark_jobs airflow/dags
 
       - name: Terraform Formatting Check
         uses: hashicorp/setup-terraform@v2
