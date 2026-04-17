@@ -16,7 +16,10 @@ def create_spark_session():
             "io.delta:delta-spark_2.12:3.1.0,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262",
         )
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        .config(
+            "spark.sql.catalog.spark_catalog",
+            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+        )
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
         .config("spark.hadoop.fs.s3a.path.style.access", "true")
     )
@@ -57,7 +60,9 @@ def main():
     gdf.expect_column_values_to_not_be_null("pickup_h3")
     gdf.expect_column_values_to_be_between("passenger_count", min_value=0, max_value=10)
     gdf.expect_column_values_to_be_between("fare_amount", min_value=0, max_value=1000)
-    gdf.expect_column_values_to_be_between("trip_duration_minutes", min_value=0, max_value=360)
+    gdf.expect_column_values_to_be_between(
+        "trip_duration_minutes", min_value=0, max_value=360
+    )
     gdf.expect_column_values_to_match_regex("pickup_h3", r"^[0-9a-f]{15}$")
     gdf.expect_compound_columns_to_be_unique(["trip_id", "tpep_pickup_datetime"])
 

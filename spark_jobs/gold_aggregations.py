@@ -15,7 +15,10 @@ def create_spark_session():
             "io.delta:delta-spark_2.12:3.1.0,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262",
         )
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        .config(
+            "spark.sql.catalog.spark_catalog",
+            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+        )
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
         .config("spark.hadoop.fs.s3a.path.style.access", "true")
     )
@@ -34,12 +37,7 @@ def create_spark_session():
 
 
 def write_delta(df, path, mode="overwrite"):
-    (
-        df.write.format("delta")
-        .mode(mode)
-        .option("overwriteSchema", "true")
-        .save(path)
-    )
+    (df.write.format("delta").mode(mode).option("overwriteSchema", "true").save(path))
 
 
 def main():
@@ -90,7 +88,9 @@ def main():
 
     print(f"Creating Gold Aggregation (Daily Revenue) at {gold_daily_path}...")
     df_daily = (
-        df_silver.withColumn("trip_date", date_format(col("tpep_pickup_datetime"), "yyyy-MM-dd"))
+        df_silver.withColumn(
+            "trip_date", date_format(col("tpep_pickup_datetime"), "yyyy-MM-dd")
+        )
         .groupBy("trip_date", "vendor_id")
         .agg(
             count("trip_id").alias("total_trips"),
@@ -104,7 +104,10 @@ def main():
 
     print(f"Creating Gold Aggregation (Hourly Demand) at {gold_hourly_path}...")
     df_hourly = (
-        df_silver.withColumn("pickup_hour", date_format(col("tpep_pickup_datetime"), "yyyy-MM-dd HH:00:00"))
+        df_silver.withColumn(
+            "pickup_hour",
+            date_format(col("tpep_pickup_datetime"), "yyyy-MM-dd HH:00:00"),
+        )
         .groupBy("pickup_hour", "pickup_h3", "pickup_zone")
         .agg(
             count("trip_id").alias("trip_count"),
@@ -116,15 +119,19 @@ def main():
     write_delta(df_hourly, gold_hourly_path)
 
     print(f"Creating Gold Dimension (Payment) at {gold_payment_dim_path}...")
-    df_payment = df_silver.select("payment_type").distinct().withColumn(
-        "payment_description",
-        when(col("payment_type") == 1, "Credit card")
-        .when(col("payment_type") == 2, "Cash")
-        .when(col("payment_type") == 3, "No charge")
-        .when(col("payment_type") == 4, "Dispute")
-        .when(col("payment_type") == 5, "Unknown")
-        .when(col("payment_type") == 6, "Voided trip")
-        .otherwise("Other"),
+    df_payment = (
+        df_silver.select("payment_type")
+        .distinct()
+        .withColumn(
+            "payment_description",
+            when(col("payment_type") == 1, "Credit card")
+            .when(col("payment_type") == 2, "Cash")
+            .when(col("payment_type") == 3, "No charge")
+            .when(col("payment_type") == 4, "Dispute")
+            .when(col("payment_type") == 5, "Unknown")
+            .when(col("payment_type") == 6, "Voided trip")
+            .otherwise("Other"),
+        )
     )
     write_delta(df_payment, gold_payment_dim_path)
 

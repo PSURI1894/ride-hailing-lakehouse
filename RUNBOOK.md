@@ -53,7 +53,7 @@ docker-compose --profile serving up -d --build
 ```
 
 Expected outcome:
-- Trino UI/API available on `http://localhost:8080`
+- Trino UI/API available on `http://localhost:8090`
 - Superset available on `http://localhost:8088`
 
 ## Troubleshooting

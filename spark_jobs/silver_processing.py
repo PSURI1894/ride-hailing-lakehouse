@@ -18,7 +18,10 @@ def create_spark_session():
             "io.delta:delta-spark_2.12:3.1.0,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262",
         )
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        .config(
+            "spark.sql.catalog.spark_catalog",
+            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+        )
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
         .config("spark.hadoop.fs.s3a.path.style.access", "true")
     )
@@ -93,26 +96,24 @@ def main():
         .withColumn("tpep_dropoff_datetime", to_timestamp("tpep_dropoff_datetime"))
     )
 
-    df_with_pu = (
-        df_typed.join(df_centroids.alias("pu"), col("PULocationID") == col("pu.LocationID"), "left")
-        .select(
-            df_typed["*"],
-            col("pu.zone_name").alias("pickup_zone"),
-            col("pu.borough").alias("pickup_borough"),
-            col("pu.lat").alias("pu_lat"),
-            col("pu.lon").alias("pu_lon"),
-        )
+    df_with_pu = df_typed.join(
+        df_centroids.alias("pu"), col("PULocationID") == col("pu.LocationID"), "left"
+    ).select(
+        df_typed["*"],
+        col("pu.zone_name").alias("pickup_zone"),
+        col("pu.borough").alias("pickup_borough"),
+        col("pu.lat").alias("pu_lat"),
+        col("pu.lon").alias("pu_lon"),
     )
 
-    df_with_geo = (
-        df_with_pu.join(df_centroids.alias("do"), col("DOLocationID") == col("do.LocationID"), "left")
-        .select(
-            df_with_pu["*"],
-            col("do.zone_name").alias("dropoff_zone"),
-            col("do.borough").alias("dropoff_borough"),
-            col("do.lat").alias("do_lat"),
-            col("do.lon").alias("do_lon"),
-        )
+    df_with_geo = df_with_pu.join(
+        df_centroids.alias("do"), col("DOLocationID") == col("do.LocationID"), "left"
+    ).select(
+        df_with_pu["*"],
+        col("do.zone_name").alias("dropoff_zone"),
+        col("do.borough").alias("dropoff_borough"),
+        col("do.lat").alias("do_lat"),
+        col("do.lon").alias("do_lon"),
     )
 
     df_enriched = (
@@ -128,7 +129,9 @@ def main():
         )
         .withColumn(
             "fare_per_mile",
-            when(col("trip_distance") > 0, col("fare_amount") / col("trip_distance")).otherwise(None),
+            when(
+                col("trip_distance") > 0, col("fare_amount") / col("trip_distance")
+            ).otherwise(None),
         )
         .filter(col("fare_amount") >= 0)
         .filter(col("trip_duration_minutes") >= 0)

@@ -5,7 +5,6 @@ from airflow import DAG
 from airflow.providers.docker.operators.docker import DockerOperator
 from docker.types import Mount
 
-
 default_args = {
     "owner": "data-engineering",
     "depends_on_past": False,

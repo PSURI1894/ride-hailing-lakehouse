@@ -3,8 +3,9 @@ import os
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, current_timestamp, from_avro, lit
 
-
-schema_path = os.path.join(os.path.dirname(__file__), "..", "producer", "schemas", "trip.avsc")
+schema_path = os.path.join(
+    os.path.dirname(__file__), "..", "producer", "schemas", "trip.avsc"
+)
 with open(schema_path, "r", encoding="utf-8") as schema_file:
     avro_schema = schema_file.read()
 
@@ -20,7 +21,10 @@ def create_spark_session():
             "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.apache.spark:spark-avro_2.12:3.5.0,io.delta:delta-spark_2.12:3.1.0,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262",
         )
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        .config(
+            "spark.sql.catalog.spark_catalog",
+            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+        )
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
         .config("spark.hadoop.fs.s3a.path.style.access", "true")
     )
@@ -44,7 +48,9 @@ def write_historical_seed(spark, bronze_path):
         print("No HISTORICAL_SOURCE_PATH provided. Skipping parquet bootstrap.")
         return
 
-    print(f"Bootstrapping historical parquet from {historical_source_path} into {bronze_path}...")
+    print(
+        f"Bootstrapping historical parquet from {historical_source_path} into {bronze_path}..."
+    )
     df_historical = (
         spark.read.parquet(historical_source_path)
         .withColumn("trip_id", col("trip_id").cast("string"))
@@ -87,9 +93,8 @@ def main():
         col("timestamp").alias("kafka_ts"),
     ).select("data.*", "kafka_ts")
 
-    df_bronze = (
-        df_parsed.withColumn("_ingest_ts", current_timestamp())
-        .withColumn("record_source", lit("kafka_live"))
+    df_bronze = df_parsed.withColumn("_ingest_ts", current_timestamp()).withColumn(
+        "record_source", lit("kafka_live")
     )
 
     print(f"Starting stream to {bronze_path}...")

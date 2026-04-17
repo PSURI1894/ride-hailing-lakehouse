@@ -57,7 +57,7 @@ docker-compose --profile serving up -d --build
 
 Then open:
 - MinIO: `http://localhost:9001`
-- Trino: `http://localhost:8080`
+- Trino: `http://localhost:8090`
 - Superset: `http://localhost:8088`
 
 ## Current Deliverables
